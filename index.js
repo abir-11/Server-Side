@@ -28,107 +28,179 @@ async function run() {
 
     const db = client.db('krishi_bd');
     const krishiCardCollection = db.collection('krishiCard');
-    //const usersCollection = db.collection('user');
-    const bidsCollection = db.collection('bids');
-    const cropsCollection=db.collection('cropId');
+    const cropsCollection = db.collection('crops');
+    const  interestsCollection = db.collection('interest');
+   
     const myKrishiCardCollection=db.collection('my_krishi_card');
 
     console.log("✅ Connected to MongoDB successfully");
-    //cropCollection
-    app.get("/cropId",async(req,res)=>{
-      const result=await myKrishiCardCollection.find().toArray();
-      res.send(result);
-    })
 
-    app.get("/cropId/:id", async (req, res) => {
-  const { id } = req.params;
-  const result = await cropsCollection.findOne({ _id: new ObjectId(id) });
-  res.send(result);
+    //interest
+    app.get('/interests/:cropId', async (req, res) => {
+    try {
+        const { cropId } = req.params;
+        const interests = await interestsCollection.find({ cropId }).toArray();
+        
+        // Option 2: Or get from crop's interests array
+        // const crop = await cropsCollection.findOne({ _id: new ObjectId(cropId) });
+        // const interests = crop?.interests || [];
+        
+        res.json(interests);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
-app.post("cropId/:id/interests", async (req, res) => {
-  const { id } = req.params;
-  const interest = req.body;
-  const interestId = new ObjectId();
+   
+   // Submit new interest
+app.post('/interests', async (req, res) => {
+    try {
+        const { cropId, userEmail, userName, quantity, message, status } = req.body;
 
-  const newInterest = { _id: interestId, ...interest, status: "pending" };
+        // Check if user already sent interest for this crop
+        const existingInterest = await interestsCollection.findOne({
+            cropId,
+            userEmail
+        });
 
-  const result = await cropsCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $push: { interests: newInterest } }
-  );
+        if (existingInterest) {
+            return res.status(400).json({ 
+                error: 'You have already sent an interest for this crop' 
+            });
+        }
 
-  res.send(result);
+        // Create new interest with unique ID
+        const interestId = new ObjectId();
+        const newInterest = {
+            _id: interestId,
+            cropId,
+            userEmail,
+            userName,
+            quantity: parseInt(quantity),
+            message,
+            status: status || 'pending',
+            createdAt: new Date()
+        };
+
+        // Insert into interests collection
+        const result = await interestsCollection.insertOne(newInterest);
+
+        // Also update crop's interests array (if you're maintaining both)
+        await cropsCollection.updateOne(
+            { _id: new ObjectId(cropId) },
+            { 
+                $push: { 
+                    interests: newInterest 
+                } 
+            }
+        );
+
+        res.status(201).json({
+            insertedId: result.insertedId,
+            message: 'Interest submitted successfully'
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
-    
-// Accept/Reject interest (owner)
-app.put("cropId/:id/interests/:interestId", async (req, res) => {
-  const { id, interestId } = req.params;
-  const { status } = req.body;
 
-  const crop = await cropsCollection.findOne({ _id: new ObjectId(id) });
-  const interest = crop.interests.find(i => i._id.toString() === interestId);
+// Update interest status (Accept/Reject)
+app.put('/interests/status', async (req, res) => {
+    try {
+        const { interestId, cropsId, status } = req.body;
 
-  if (!interest) return res.status(404).send({ message: "Interest not found" });
+        // Update in interests collection
+        const result = await interestsCollection.updateOne(
+            { _id: new ObjectId(interestId) },
+            { $set: { status } }
+        );
 
-  interest.status = status;
-  if (status === "accepted") crop.quantity -= interest.quantity;
+        // Also update in crop's interests array
+        await cropsCollection.updateOne(
+            { 
+                _id: new ObjectId(cropsId),
+                "interests._id": new ObjectId(interestId)
+            },
+            { 
+                $set: { "interests.$.status": status } 
+            }
+        );
 
-  const result = await cropsCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: { interests: crop.interests, quantity: crop.quantity } }
-  );
+        res.json({ 
+            modifiedCount: result.modifiedCount,
+            message: `Interest ${status} successfully`
+        });
 
-  res.send(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
-    // 🧑‍🌾 User API
-    // app.post('/user', async (req, res) => {
-    //   const newUser = req.body;
-    //   const email = req.body.email;
-    //   const existingUser = await usersCollection.findOne({ email });
-    //   if (existingUser) {
-    //     return res.send('User already exists. No need to insert again.');
-    //   }
-    //   const result = await usersCollection.insertOne(newUser);
-    //   res.send(result);
-    // });
 
-    //my_krishi_card
-    app.get("/my_krishi_card",async(req,res)=>{
-      const result=await myKrishiCardCollection.find().toArray();
-      res.send(result);
-    })
-    app.post('/my_krishi_card',async(req,res)=>{
-      const myNewkrishiCard=req.body;
-      const result=await myKrishiCardCollection.insertOne(myNewkrishiCard);
-      res.send(result)
-    })
-    app.patch('/my_krishi_card/:id', async (req, res) => {
-      const id = req.params.id;
-      const updateData = req.body;
-      const result = await myKrishiCardCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateData }
-      );
-      res.send(result);
-    });
+// Get user's interests
+app.get('/interests', async (req, res) => {
+    try {
+        const email = req.query.email;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
 
-    app.put('/my_krishi_card/:id',async(req,res)=>{
-      const {id}=req.params;
-      const data =req.body;
-      const objectId=new ObjectId(id);
-      const filter={_id: objectId}
-      const update={
-        $set:data
-      }
-      const result =await myNewkrishiCard.updateOne(filter,update)
-      res.send(result)
-    })
+        const userInterests = await interestsCollection.find({ userEmail: email }).toArray();
+        res.json(userInterests);
 
-     app.delete('/my_krishi_card/:id', async (req, res) => {
-      const id = req.params.id;
-      const result = await myKrishiCardCollection.deleteOne({ _id: new ObjectId(id) });
-      res.send(result);
-    });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get single crop by ID
+app.get('/crops/:id', async (req, res) => {
+    try {
+        const crop = await cropsCollection.findOne({ 
+            _id: new ObjectId(req.params.id) 
+        });
+        
+        if (!crop) {
+            return res.status(404).json({ error: 'Crop not found' });
+        }
+        
+        res.json(crop);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all crops
+app.get('/crops', async (req, res) => {
+    try {
+        const crops = await cropsCollection.find().toArray();
+        res.json(crops);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create new crop
+app.post('/crops', async (req, res) => {
+    try {
+        const newCrop = {
+            ...req.body,
+            interests: [], // Initialize empty interests array
+            createdAt: new Date()
+        };
+
+        const result = await cropsCollection.insertOne(newCrop);
+        res.status(201).json({ 
+            insertedId: result.insertedId,
+            ...newCrop 
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+     
     //  KrishiCard APIs
     app.get('/krishiCard', async (req, res) => {
       const result = await krishiCardCollection.find().toArray();
@@ -151,6 +223,15 @@ app.put("cropId/:id/interests/:interestId", async (req, res) => {
       const result = await krishiCardCollection.insertOne(newKrishiCard);
       res.send(result);
     });
+    app.patch('/krishiCard/:id', async (req, res) => {
+      const id = req.params.id;
+      const updateData = req.body;
+      const result = await krishiCardCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updateData }
+      );
+      res.send(result);
+    });
      app.put('/krishiCard/:id',async(req,res)=>{
       const {id}=req.params;
       const data =req.body;
@@ -162,26 +243,33 @@ app.put("cropId/:id/interests/:interestId", async (req, res) => {
       const result =await myNewkrishiCard.updateOne(filter,update)
       res.send(result)
     })
-
-    // 💰 Bids API (Cleaned)
-    app.get('/bids', async (req, res) => {
+      
+    app.delete('/krishiCard/:id', async (req, res) => {
+      const id = req.params.id;
+      const result = await krishiCardCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+    // Bids API (Cleaned)
+    app.get('/interest', async (req, res) => {
       const email = req.query.email;
       const query = email ? { buyer_email: email } : {};
       const result = await bidsCollection.find(query).toArray();
       res.send(result);
     });
 
-    app.post('/bids', async (req, res) => {
+    app.post('/interest', async (req, res) => {
       const newBid = req.body;
       const result = await bidsCollection.insertOne(newBid);
       res.send(result);
     });
 
-    app.delete('/bids/:id', async (req, res) => {
-      const id = req.params.id;
-      const result = await bidsCollection.deleteOne({ _id: new ObjectId(id) });
-      res.send(result);
-    });
+
+
+//     app.delete('/interest/:id', async (req, res) => {
+//       const id = req.params.id;
+//       const result = await bidsCollection.deleteOne({ _id: new ObjectId(id) });
+//       res.send(result);
+//     });
 
 
 
