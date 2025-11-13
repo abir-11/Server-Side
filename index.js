@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId} = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -30,10 +30,56 @@ async function run() {
     const krishiCardCollection = db.collection('krishiCard');
     //const usersCollection = db.collection('user');
     const bidsCollection = db.collection('bids');
+    const cropsCollection=db.collection('cropId');
     const myKrishiCardCollection=db.collection('my_krishi_card');
 
     console.log("✅ Connected to MongoDB successfully");
+    //cropCollection
+    app.get("/cropId",async(req,res)=>{
+      const result=await myKrishiCardCollection.find().toArray();
+      res.send(result);
+    })
 
+    app.get("/cropId/:id", async (req, res) => {
+  const { id } = req.params;
+  const result = await cropsCollection.findOne({ _id: new ObjectId(id) });
+  res.send(result);
+});
+app.post("cropId/:id/interests", async (req, res) => {
+  const { id } = req.params;
+  const interest = req.body;
+  const interestId = new ObjectId();
+
+  const newInterest = { _id: interestId, ...interest, status: "pending" };
+
+  const result = await cropsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $push: { interests: newInterest } }
+  );
+
+  res.send(result);
+});
+    
+// Accept/Reject interest (owner)
+app.put("cropId/:id/interests/:interestId", async (req, res) => {
+  const { id, interestId } = req.params;
+  const { status } = req.body;
+
+  const crop = await cropsCollection.findOne({ _id: new ObjectId(id) });
+  const interest = crop.interests.find(i => i._id.toString() === interestId);
+
+  if (!interest) return res.status(404).send({ message: "Interest not found" });
+
+  interest.status = status;
+  if (status === "accepted") crop.quantity -= interest.quantity;
+
+  const result = await cropsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { interests: crop.interests, quantity: crop.quantity } }
+  );
+
+  res.send(result);
+});
     // 🧑‍🌾 User API
     // app.post('/user', async (req, res) => {
     //   const newUser = req.body;
@@ -66,6 +112,18 @@ async function run() {
       res.send(result);
     });
 
+    app.put('/my_krishi_card/:id',async(req,res)=>{
+      const {id}=req.params;
+      const data =req.body;
+      const objectId=new ObjectId(id);
+      const filter={_id: objectId}
+      const update={
+        $set:data
+      }
+      const result =await myNewkrishiCard.updateOne(filter,update)
+      res.send(result)
+    })
+
      app.delete('/my_krishi_card/:id', async (req, res) => {
       const id = req.params.id;
       const result = await myKrishiCardCollection.deleteOne({ _id: new ObjectId(id) });
@@ -93,7 +151,17 @@ async function run() {
       const result = await krishiCardCollection.insertOne(newKrishiCard);
       res.send(result);
     });
-
+     app.put('/krishiCard/:id',async(req,res)=>{
+      const {id}=req.params;
+      const data =req.body;
+      const objectId=new ObjectId(id);
+      const filter={_id: objectId}
+      const update={
+        $set:data
+      }
+      const result =await myNewkrishiCard.updateOne(filter,update)
+      res.send(result)
+    })
 
     // 💰 Bids API (Cleaned)
     app.get('/bids', async (req, res) => {
@@ -114,6 +182,8 @@ async function run() {
       const result = await bidsCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
+
+
 
   } finally {
     // keep connection open
