@@ -82,23 +82,7 @@ async function run() {
       res.send(result);
     });
 
-    // Crops APIs
-    // app.get('/crops', async (req, res) => {
-    //   const result = await cropsCollection.find().toArray();
-    //   res.send(result);
-    // });
-
-    // app.get('/crops/:id', async (req, res) => {
-    //   const id = req.params.id;
-    //   const result = await cropsCollection.findOne({ _id: new ObjectId(id) });
-    //   res.send(result);
-    // });
-
-    // app.post('/crops', async (req, res) => {
-    //   const newCrop = req.body;
-    //   const result = await cropsCollection.insertOne(newCrop);
-    //   res.send(result);
-    // });
+   
 
 
     
@@ -107,8 +91,6 @@ async function run() {
     app.post('/interests', async (req, res) => {
       try {
         const interest = req.body;
-        
-        // Check if user already submitted interest for this crop
         const existingInterest = await interestsCollection.findOne({
           cropId: interest.cropId,
           userEmail: interest.userEmail
@@ -120,9 +102,6 @@ async function run() {
           });
         }
 
-
-
-        // Create a unique _id for this interest
         const interestId = new ObjectId();
         const newInterest = { 
           _id: interestId, 
@@ -132,11 +111,6 @@ async function run() {
 
         const result = await interestsCollection.insertOne(newInterest);
         
-        // Also push to crop's interests array
-        await cropsCollection.updateOne(
-          { _id: new ObjectId(interest.cropId) },
-          { $push: { interests: newInterest } }
-        );
 
         res.send({ 
           insertedId: interestId, 
@@ -159,24 +133,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/interests/:id', async (req, res) => {
-      const id = req.params.id;
-      const { status } = req.body;
-      
-      const result = await interestsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { status: status } }
-      );
-
-      // Also update in crop's interests array
-      await cropsCollection.updateOne(
-        { "interests._id": new ObjectId(id) },
-        { $set: { "interests.$.status": status } }
-      );
-
-      res.send(result);
-    });
-
+   
   } catch (error) {
     console.error('MongoDB connection error:', error);
   }
