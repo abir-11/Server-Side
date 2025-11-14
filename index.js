@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -18,17 +19,13 @@ const client = new MongoClient(uri, {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('Krishi Farming server is running');
-});
 
 async function run() {
   try {
-    await client.connect();
+
 
     const db = client.db('krishi_bd');
     const krishiCardCollection = db.collection('krishiCard');
-    const cropsCollection = db.collection('crops');
     const interestsCollection = db.collection('interests');
 
     console.log("Connected to MongoDB successfully");
@@ -82,10 +79,10 @@ async function run() {
       res.send(result);
     });
 
-   
 
 
-    
+
+
 
     // Interests APIs
     app.post('/interests', async (req, res) => {
@@ -97,24 +94,24 @@ async function run() {
         });
 
         if (existingInterest) {
-          return res.status(400).send({ 
-            message: 'You have already submitted an interest for this crop' 
+          return res.status(400).send({
+            message: 'You have already submitted an interest for this crop'
           });
         }
 
         const interestId = new ObjectId();
-        const newInterest = { 
-          _id: interestId, 
+        const newInterest = {
+          _id: interestId,
           ...interest,
           createdAt: new Date()
         };
 
         const result = await interestsCollection.insertOne(newInterest);
-        
 
-        res.send({ 
-          insertedId: interestId, 
-          message: 'Interest submitted successfully' 
+
+        res.send({
+          insertedId: interestId,
+          message: 'Interest submitted successfully'
         });
       } catch (error) {
         res.status(500).send({ error: 'Failed to submit interest' });
@@ -133,13 +130,18 @@ async function run() {
       res.send(result);
     });
 
-   
+
   } catch (error) {
     console.error('MongoDB connection error:', error);
   }
 }
 
 run().catch(console.dir);
+
+app.get('/', (req, res) => {
+  res.send('Krishi Farming server is running');
+});
+
 
 app.listen(port, () => {
   console.log(`Krishi Farming server is running on port: ${port}`);
