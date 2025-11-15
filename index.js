@@ -64,15 +64,7 @@ async function run() {
       res.send(result);
     });
 
-    // app.put('/krishiCard/:id', async (req, res) => {
-    //   const { id } = req.params;
-    //   const data = req.body;
-    //   const objectId = new ObjectId(id);
-    //   const filter = { _id: objectId };
-    //   const update = { $set: data };
-    //   const result = await krishiCardCollection.updateOne(filter, update);
-    //   res.send(result);
-    // });
+    
 
     app.delete('/krishiCard/:id', async (req, res) => {
       const id = req.params.id;
