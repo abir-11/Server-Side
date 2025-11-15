@@ -33,6 +33,7 @@ async function run() {
     // KrishiCard APIs
     app.get('/krishiCard', async (req, res) => {
       const result = await krishiCardCollection.find().toArray();
+      //console.log(result);
       res.send(result);
     });
 
@@ -63,15 +64,15 @@ async function run() {
       res.send(result);
     });
 
-    app.put('/krishiCard/:id', async (req, res) => {
-      const { id } = req.params;
-      const data = req.body;
-      const objectId = new ObjectId(id);
-      const filter = { _id: objectId };
-      const update = { $set: data };
-      const result = await krishiCardCollection.updateOne(filter, update);
-      res.send(result);
-    });
+    // app.put('/krishiCard/:id', async (req, res) => {
+    //   const { id } = req.params;
+    //   const data = req.body;
+    //   const objectId = new ObjectId(id);
+    //   const filter = { _id: objectId };
+    //   const update = { $set: data };
+    //   const result = await krishiCardCollection.updateOne(filter, update);
+    //   res.send(result);
+    // });
 
     app.delete('/krishiCard/:id', async (req, res) => {
       const id = req.params.id;
@@ -117,6 +118,11 @@ async function run() {
         res.status(500).send({ error: 'Failed to submit interest' });
       }
     });
+    app.get('/interests',async(req,res)=>{
+      const result =await interestsCollection.find().toArray();
+      console.log(result);
+      res.send(result);
+    })
 
     app.get('/interests/:cropId', async (req, res) => {
       const cropId = req.params.cropId;
@@ -130,7 +136,29 @@ async function run() {
       res.send(result);
     });
 
-
+    app.patch('/interests/:id', async (req, res) => {
+      const id = req.params.id;
+     
+      const updateData = req.body;
+       console.log(id,updateData,'id');
+      const query={ _id: new ObjectId(id) }
+      const update={
+         $set: {
+          
+             status:updateData.status
+        } 
+    }
+      const updateQuantity={  $set: {
+            quantity:updateData.quantity,
+             
+        } }
+      const result=await interestsCollection.updateOne(query,update);
+      const updatedResult=await krishiCardCollection.updateOne({_id:new ObjectId(updateData.cropId)},updateQuantity)
+      console.log(result)
+      res.send(result,updatedResult);
+    });
+     
+   
   } catch (error) {
     console.error('MongoDB connection error:', error);
   }
